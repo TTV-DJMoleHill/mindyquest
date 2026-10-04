@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Zanventures of Mindyquest</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0d12; color: #d8dde8;
+    font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center;
+    box-sizing: border-box; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+      env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+  #wrap { position: relative; width: min(100vw, calc((100vh - 2.5em) * 1.6)); aspect-ratio: 384 / 240; }
+  #screen { width: 100%; height: 100%; display: block; image-rendering: pixelated;
+    image-rendering: crisp-edges; background: #000; }
+  /* The hi-res title card (tools/make_title_card.py) sits behind the prompt;
+     without one the overlay is the plain dark veil. */
+  #overlay { position: absolute; inset: 0; display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 3%; box-sizing: border-box;
+    background: rgba(5, 6, 10, 0.55) url("title_card.png") center / cover no-repeat;
+    cursor: default; }
+  #overlay.ready { cursor: pointer; }
+  #status { padding: 0.6em 1.2em; border: 1px solid #d8dde8; background: #0b0d12; letter-spacing: 0.08em; }
+  #overlay.ready #status { animation: blink 1.2s steps(2, start) infinite; }
+  @keyframes blink { 50% { opacity: 0.45; } }
+  #help { margin-top: 0.6em; padding: 0 1em; max-width: 100%; box-sizing: border-box;
+    text-align: center; font-size: 12px; color: #8a92a6; }
+  #help b { color: #d8dde8; font-weight: normal; }
+
+  /* Touch controls: only on a coarse pointer (index script adds .touch).
+     Each button stands in for the keyboard key in its data-key; src/web.rs
+     reads which buttons fingers are on. */
+  #touch { display: none; }
+  body.touch #help { display: none; }
+  body.touch { touch-action: none; -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; overscroll-behavior: none; }
+  body.touch #touch { display: block; position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+  #touch .cluster { position: absolute; pointer-events: none;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); }
+  #touch button { pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent;
+    position: absolute; box-sizing: border-box; margin: 0; padding: 0;
+    font: 11px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0.06em;
+    color: rgba(216, 221, 232, 0.85); background: rgba(216, 221, 232, 0.10);
+    border: 1.5px solid rgba(216, 221, 232, 0.38); }
+  #touch button.on { background: rgba(255, 216, 74, 0.38); border-color: rgba(255, 216, 74, 0.9);
+    color: #fff; }
+  /* D-pad: a 3x3 cross. */
+  #dpad { left: calc(env(safe-area-inset-left, 0px) + 16px); width: 156px; height: 156px; }
+  #dpad button { width: 52px; height: 52px; border-radius: 10px; font-size: 18px; }
+  #dpad .u { left: 52px; top: 0; } #dpad .d { left: 52px; top: 104px; }
+  #dpad .l { left: 0; top: 52px; } #dpad .r { left: 104px; top: 52px; }
+  /* Face buttons: jump biggest, under the thumb's rest. */
+  #face { right: calc(env(safe-area-inset-right, 0px) + 16px); width: 176px; height: 156px; }
+  #face button { border-radius: 50%; width: 60px; height: 60px; }
+  #face .jump { width: 74px; height: 74px; right: 0; top: 70px; font-size: 13px; }
+  #face .run { right: 84px; top: 92px; }
+  #face .ability { right: 8px; top: 0; }
+  #face .switch { right: 82px; top: 22px; font-size: 10px; }
+  #sys { top: calc(env(safe-area-inset-top, 0px) + 10px); bottom: auto; left: 0; right: 0; height: 34px; }
+  #sys button { top: 0; height: 30px; padding: 0 12px; border-radius: 15px; }
+  #sys .menu { left: calc(env(safe-area-inset-left, 0px) + 16px); }
+  #sys .start { right: calc(env(safe-area-inset-right, 0px) + 16px); }
+  /* Portrait phone: the game at the top, the controls in the space below. */
+  @media (orientation: portrait) {
+    body.touch { justify-content: flex-start; padding-top: calc(env(safe-area-inset-top, 0px) + 54px); }
+  }
+  /* Short landscape: the game fills the height; the controls sit over its
+     edges, translucent, so the middle of the screen stays clear. */
+  @media (orientation: landscape) and (max-height: 500px) {
+    body.touch #wrap { width: min(calc(100vw - 260px - env(safe-area-inset-left, 0px)
+      - env(safe-area-inset-right, 0px)), calc(100vh * 1.6)); }
+    #dpad { transform: scale(0.8); transform-origin: bottom left; }
+    #face { transform: scale(0.8); transform-origin: bottom right; }
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="screen" width="384" height="240"></canvas>
+  <div id="overlay"><div id="status">loading&hellip;</div></div>
+</div>
+<div id="help"><b>&larr;&rarr;/A D</b> move &middot; <b>Space/&uarr;/W/Z</b> jump &middot; <b>Shift/X</b> run &middot;
+  <b>Q/Tab</b> switch hero &middot; <b>C</b> ability &middot; <b>Enter</b> start &middot; <b>Esc</b> menu &middot;
+  <b>P</b> pause &middot; <b>R</b> restart stage &middot; <b>M</b> mute &middot; <b>?</b> controls &middot; gamepads work</div>
+<div id="touch" aria-hidden="true">
+  <div class="cluster" id="sys">
+    <button class="menu" data-key="Escape">MENU</button>
+    <button class="start" data-key="Enter">START</button>
+  </div>
+  <div class="cluster" id="dpad">
+    <button class="u" data-key="ArrowUp">&#9650;</button>
+    <button class="l" data-key="ArrowLeft">&#9664;</button>
+    <button class="r" data-key="ArrowRight">&#9654;</button>
+    <button class="d" data-key="ArrowDown">&#9660;</button>
+  </div>
+  <div class="cluster" id="face">
+    <button class="ability" data-key="KeyC">ABILITY</button>
+    <button class="switch" data-key="KeyQ">SWITCH</button>
+    <button class="run" data-key="ShiftLeft">RUN</button>
+    <button class="jump" data-key="Space">JUMP</button>
+  </div>
+</div>
+<script type="module">
+  import init from "./mx_web.js";
+  // Touch controls for a coarse pointer, or from the first touch anywhere
+  // (some phones report a fine pointer). Only toggles a class.
+  const coarse = window.matchMedia("(pointer: coarse)");
+  if (coarse.matches) document.body.classList.add("touch");
+  window.addEventListener("touchstart", () => document.body.classList.add("touch"),
+    { once: true, passive: true });
+  init().catch((e) => {
+    console.error(e);
+    document.getElementById("status").textContent = "failed to start: " + e;
+  });
+</script>
+</body>
+</html>
